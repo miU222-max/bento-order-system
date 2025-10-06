@@ -200,6 +200,33 @@ class SalesReportResponse(BaseModel):
     total_orders: int
 
 
+# ===== 注文履歴関連 =====
+
+class OrderHistoryItem(BaseModel):
+    """注文履歴の項目（軽量版）"""
+    id: int
+    quantity: int
+    total_price: int
+    status: str
+    delivery_time: Optional[time]
+    notes: Optional[str]
+    ordered_at: datetime
+    
+    # 関連メニュー情報
+    menu_name: str
+    menu_image_url: Optional[str]
+
+    class Config:
+        from_attributes = True
+        
+
+
+class OrderHistoryResponse(BaseModel):
+    """注文履歴のレスポンス"""
+    orders: List[OrderHistoryItem]
+    total: int
+
+
 # ===== 検索・フィルタ関連 =====
 
 class OrderFilter(BaseModel):

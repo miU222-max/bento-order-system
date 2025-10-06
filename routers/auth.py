@@ -72,29 +72,49 @@ def login_for_access_token(user_credentials: UserLogin, db: Session = Depends(ge
     
     成功時は、アクセストークンとユーザー情報を返します。
     """
+    print(f"Login attempt - Username: {user_credentials.username}")
+    
     # ユーザーを検索
     user = db.query(User).filter(User.username == user_credentials.username).first()
     
-    # ユーザー存在確認とパスワード検証
-    if not user or not verify_password(user_credentials.password, user.hashed_password):
+    if not user:
+        print(f"User not found: {user_credentials.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    print(f"User found: {user.username}, checking password...")
+    
+    # パスワード検証
+    if not verify_password(user_credentials.password, user.hashed_password):
+        print(f"Password verification failed for user: {user_credentials.username}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    print(f"Password verified for user: {user_credentials.username}")
+    
     # ユーザーがアクティブか確認
     if not user.is_active:
+        print(f"User is inactive: {user_credentials.username}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
         )
+    
+    print(f"User is active: {user_credentials.username}")
     
     # アクセストークンを作成
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
+    
+    print(f"Login successful for user: {user_credentials.username}")
     
     return {
         "access_token": access_token,

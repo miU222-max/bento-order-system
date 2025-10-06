@@ -22,15 +22,31 @@ class ApiClient {
             config.headers['Authorization'] = `Bearer ${authToken}`;
         }
 
+        console.log('API Request:', {
+            url: url,
+            method: config.method || 'GET',
+            headers: config.headers,
+            body: config.body
+        });
+
         try {
             const response = await fetch(url, config);
             
+            console.log('API Response:', {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok
+            });
+            
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
+                console.error('API Error Data:', errorData);
                 throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
             }
 
-            return await response.json();
+            const data = await response.json();
+            console.log('API Response Data:', data);
+            return data;
         } catch (error) {
             console.error('API request failed:', error);
             throw error;
