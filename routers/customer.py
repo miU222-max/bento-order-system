@@ -14,7 +14,8 @@ from dependencies import get_current_customer
 from models import User, Menu, Order
 from schemas import (
     MenuResponse, MenuListResponse, MenuFilter,
-    OrderCreate, OrderResponse, OrderListResponse
+    OrderCreate, OrderResponse, OrderListResponse,
+    OrderHistoryResponse, OrderHistoryItem
 )
 
 router = APIRouter(prefix="/customer", tags=["お客様"])
@@ -138,7 +139,7 @@ def create_order(
     return db_order
 
 
-@router.get("/orders", response_model=OrderListResponse, summary="注文履歴取得")
+@router.get("/orders", response_model=OrderHistoryResponse, summary="注文履歴取得")
 def get_my_orders(
     status_filter: Optional[str] = Query(None, description="ステータスでフィルタ"),
     page: int = Query(1, ge=1, description="ページ番号"),
@@ -149,11 +150,26 @@ def get_my_orders(
     """
     自分の注文履歴を取得
     
+    - JWT認証必須（current_userから取得）
     - 最新の注文から順に表示
     - ステータスでフィルタリング可能
     - ページネーション対応
+    - パフォーマンス向上のためJOINを使用
     """
-    query = db.query(Order).filter(Order.user_id == current_user.id)
+    # JOINを使用してメニュー情報を一度に取得
+    query = db.query(
+        Order.id,
+        Order.quantity,
+        Order.total_price,
+        Order.status,
+        Order.delivery_time,
+        Order.notes,
+        Order.ordered_at,
+        Menu.name.label('menu_name'),
+        Menu.image_url.label('menu_image_url')
+    ).join(Menu, Order.menu_id == Menu.id).filter(
+        Order.user_id == current_user.id
+    )
     
     # ステータスフィルタ
     if status_filter:
@@ -167,13 +183,25 @@ def get_my_orders(
     
     # ページネーション
     offset = (page - 1) * per_page
-    orders = query.offset(offset).limit(per_page).all()
+    results = query.offset(offset).limit(per_page).all()
     
-    # メニュー情報を含める
-    for order in orders:
-        order.menu = db.query(Menu).filter(Menu.id == order.menu_id).first()
+    # OrderHistoryItemオブジェクトに変換
+    orders = []
+    for result in results:
+        order_item = OrderHistoryItem(
+            id=result.id,
+            quantity=result.quantity,
+            total_price=result.total_price,
+            status=result.status,
+            delivery_time=result.delivery_time,
+            notes=result.notes,
+            ordered_at=result.ordered_at,
+            menu_name=result.menu_name,
+            menu_image_url=result.menu_image_url
+        )
+        orders.append(order_item)
     
-    return {"orders": orders, "total": total}
+    return OrderHistoryResponse(orders=orders, total=total)
 
 
 @router.get("/orders/{order_id}", response_model=OrderResponse, summary="注文詳細取得")
